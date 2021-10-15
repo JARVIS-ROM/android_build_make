@@ -150,6 +150,8 @@ else
   endif
 endif
 
+# Include Fingerprint
+include vendor/jarvis/build/fingerprint.mk
 
 # Bring in standard build system definitions.
 include $(BUILD_SYSTEM)/definitions.mk
