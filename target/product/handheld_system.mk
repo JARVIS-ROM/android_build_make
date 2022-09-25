@@ -87,3 +87,6 @@ PRODUCT_VENDOR_PROPERTIES += \
 # Traceur for debug only
 PRODUCT_PACKAGES_ENG += \
     Traceur
+
+# JARVIS
+$(call inherit-product, vendor/jarvis/configs/configs.mk)
