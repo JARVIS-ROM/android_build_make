@@ -220,6 +220,29 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   # Dump fingerprints
   script.Print("Target: {}".format(target_info.fingerprint))
 
+  script.Print("===============================================");
+  script.Print("");
+  script.Print("       ██  █████  ██████  ██    ██ ██ ███████  ");
+  script.Print("       ██ ██   ██ ██   ██ ██    ██ ██ ██       ");
+  script.Print("       ██ ███████ ██████  ██    ██ ██ ███████  ");
+  script.Print("  ██   ██ ██   ██ ██   ██  ██  ██  ██      ██  ");
+  script.Print("   █████  ██   ██ ██   ██   ████   ██ ███████  ");
+  script.Print("");
+  script.Print("===============================================");
+
+  jarvis_version = target_info.GetBuildProp("ro.jarvis.version")
+  build_id = target_info.GetBuildProp("ro.build.id")
+  build_date = target_info.GetBuildProp("ro.build.date")
+  security_patch = target_info.GetBuildProp("ro.build.version.security_patch")
+  jarvis_device = target_info.GetBuildProp("ro.product.device")
+
+  script.Print("===============================================");
+  script.Print(" Version        : %s"%(jarvis_version));
+  script.Print(" Release Date   : %s"%(build_date));
+  script.Print(" Security Patch : %s"%(security_patch));
+  script.Print(" Device         : %s"%(jarvis_device));
+  script.Print("===============================================");
+
   device_specific.FullOTA_InstallBegin()
 
   CopyInstallTools(output_zip)
