@@ -30,6 +30,8 @@ POST_PROCESS_PROPS := $(HOST_OUT_EXECUTABLES)/post_process_props$(HOST_EXECUTABL
 # $(1): Partition name
 # $(2): Output file name
 define generate-common-build-props
+    bash -c '\
+    $(or $(PRODUCT_BUILD_PROP_OVERRIDES),:);\
     echo "####################################" >> $(2);\
     echo "# from generate-common-build-props" >> $(2);\
     echo "# These properties identify this partition image." >> $(2);\
@@ -42,10 +44,10 @@ define generate-common-build-props
         echo "ro.product.$(1).name=$(PRODUCT_SYSTEM_NAME)" >> $(2);\
       ,\
         echo "ro.product.$(1).brand=$(PRODUCT_BRAND)" >> $(2);\
-        echo "ro.product.$(1).device=$(TARGET_DEVICE)" >> $(2);\
+        echo "ro.product.$(1).device=$${TARGET_DEVICE:-$(TARGET_DEVICE)}" >> $(2);\
         echo "ro.product.$(1).manufacturer=$(PRODUCT_MANUFACTURER)" >> $(2);\
-        echo "ro.product.$(1).model=$(PRODUCT_MODEL)" >> $(2);\
-        echo "ro.product.$(1).name=$(TARGET_PRODUCT)" >> $(2);\
+        echo "ro.product.$(1).model=$${PRODUCT_MODEL:-$(PRODUCT_MODEL)}" >> $(2);\
+        echo "ro.product.$(1).name=$${TARGET_PRODUCT:-$(TARGET_PRODUCT)}" >> $(2);\
     )\
     $(if $(filter true,$(ZYGOTE_FORCE_64)),\
         $(if $(filter vendor,$(1)),\
@@ -70,6 +72,7 @@ define generate-common-build-props
     echo "ro.$(1).build.version.release=$(PLATFORM_VERSION_LAST_STABLE)" >> $(2);\
     echo "ro.$(1).build.version.release_or_codename=$(PLATFORM_VERSION)" >> $(2);\
     echo "ro.$(1).build.version.sdk=$(PLATFORM_SDK_VERSION)" >> $(2);\
+    ';\
 
 endef
 
@@ -111,7 +114,8 @@ $(2): $(POST_PROCESS_PROPS) $(INTERNAL_BUILD_ID_MAKEFILE) $(3) $(6)
 	$(hide) mkdir -p $$(dir $$@)
 	$(hide) rm -f $$@ && touch $$@
 ifneq ($(strip $(7)), true)
-	$(hide) $$(call generate-common-build-props,$(call to-lower,$(strip $(1))),$$@)
+	$(hide) $(PRODUCT_BUILD_PROP_OVERRIDES) \
+	        $$(call generate-common-build-props,$(call to-lower,$(strip $(1))),$$@)
 endif
 	$(hide) $(foreach file,$(strip $(3)),\
 	    if [ -f "$(file)" ]; then\
@@ -156,11 +160,10 @@ endif
 # non-default dev keys (usually private keys from a vendor directory).
 # Both of these tags will be removed and replaced with "release-keys"
 # when the target-files is signed in a post-build step.
-ifeq ($(DEFAULT_SYSTEM_DEV_CERTIFICATE),build/make/target/product/security/testkey)
-BUILD_KEYS := test-keys
-else
-BUILD_KEYS := dev-keys
-endif
+# set them to relese-keys here since we change keys at compilation time itself
+
+BUILD_KEYS := release-keys
+
 BUILD_VERSION_TAGS += $(BUILD_KEYS)
 BUILD_VERSION_TAGS := $(subst $(space),$(comma),$(sort $(BUILD_VERSION_TAGS)))
 
@@ -260,6 +263,7 @@ $(gen_from_buildinfo_sh): $(INTERNAL_BUILD_ID_MAKEFILE) $(API_FINGERPRINT) | $(B
 	$(hide) TARGET_BUILD_TYPE="$(TARGET_BUILD_VARIANT)" \
 	        TARGET_BUILD_FLAVOR="$(TARGET_BUILD_FLAVOR)" \
 	        TARGET_DEVICE="$(TARGET_DEVICE)" \
+	        JARVIS_DEVICE="$(TARGET_DEVICE)" \
 	        PRODUCT_DEFAULT_LOCALE="$(call get-default-product-locale,$(PRODUCT_LOCALES))" \
 	        PRODUCT_DEFAULT_WIFI_CHANNELS="$(PRODUCT_DEFAULT_WIFI_CHANNELS)" \
 	        PRIVATE_BUILD_DESC="$(BUILD_DESC)" \
@@ -284,12 +288,14 @@ $(gen_from_buildinfo_sh): $(INTERNAL_BUILD_ID_MAKEFILE) $(API_FINGERPRINT) | $(B
 	        PLATFORM_VERSION_KNOWN_CODENAMES="$(PLATFORM_VERSION_KNOWN_CODENAMES)" \
 	        PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION="$(PLATFORM_MIN_SUPPORTED_TARGET_SDK_VERSION)" \
 	        BUILD_VERSION_TAGS="$(BUILD_VERSION_TAGS)" \
+	        BUILD_FINGERPRINT="$(BUILD_FINGERPRINT_FROM_FILE)" \
 	        $(if $(OEM_THUMBPRINT_PROPERTIES),BUILD_THUMBPRINT="$(BUILD_THUMBPRINT_FROM_FILE)") \
 	        TARGET_CPU_ABI_LIST="$(TARGET_CPU_ABI_LIST)" \
 	        TARGET_CPU_ABI_LIST_32_BIT="$(TARGET_CPU_ABI_LIST_32_BIT)" \
 	        TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
 	        TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
 	        TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
+	        $(PRODUCT_BUILD_PROP_OVERRIDES) \
 	        ZYGOTE_FORCE_64_BIT="$(ZYGOTE_FORCE_64_BIT)" \
 	        bash $(BUILDINFO_SH) > $@
 

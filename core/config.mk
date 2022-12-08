@@ -126,7 +126,6 @@ $(KATI_obsolete_var \
   ARCH_X86_HAVE_SSSE3 \
 )
 $(KATI_obsolete_var PRODUCT_IOT)
-$(KATI_obsolete_var MD5SUM)
 $(KATI_obsolete_var BOARD_HAL_STATIC_LIBRARIES, See $(CHANGES_URL)#BOARD_HAL_STATIC_LIBRARIES)
 $(KATI_obsolete_var LOCAL_HAL_STATIC_LIBRARIES, See $(CHANGES_URL)#BOARD_HAL_STATIC_LIBRARIES)
 $(KATI_obsolete_var \
@@ -355,6 +354,10 @@ include $(BUILD_SYSTEM)/envsetup.mk
 # Pruned directory options used when using findleaves.py
 # See envsetup.mk for a description of SCAN_EXCLUDE_DIRS
 FIND_LEAVES_EXCLUDES := $(addprefix --prune=, $(SCAN_EXCLUDE_DIRS) .repo .git)
+
+ifneq ($(JARVIS_BUILD),)
+include vendor/jarvis/configs/BoardConfigJARVIS.mk
+endif
 
 # The build system exposes several variables for where to find the kernel
 # headers:
@@ -650,6 +653,13 @@ EXTRACT_KERNEL := build/make/tools/extract_kernel.py
 HOST_JDK_TOOLS_JAR := $(ANDROID_JAVA8_HOME)/lib/tools.jar
 
 APICHECK_COMMAND := $(JAVA) -Xmx4g -jar $(APICHECK) --no-banner
+
+# It's called md5 on Mac OS and md5sum on Linux
+ifeq ($(HOST_OS),darwin)
+MD5SUM:=md5 -q
+else
+MD5SUM:=md5sum
+endif
 
 # Boolean variable determining if the allow list for compatible properties is enabled
 PRODUCT_COMPATIBLE_PROPERTY := true
@@ -1259,6 +1269,14 @@ dont_bother_goals := out product-graph
 # consistency with those defined in BoardConfig.mk files.
 include $(BUILD_SYSTEM)/android_soong_config_vars.mk
 
+ifneq ($(JARVIS_BUILD),)
+ifneq ($(wildcard device/jarvis/sepolicy/common/sepolicy.mk),)
+## We need to be sure the global selinux policies are included
+## last, to avoid accidental resetting by device configs
+$(eval include device/jarvis/sepolicy/common/sepolicy.mk)
+endif
+endif
+
 ifeq ($(CALLED_FROM_SETUP),true)
 include $(BUILD_SYSTEM)/ninja_config.mk
 include $(BUILD_SYSTEM)/soong_config.mk
@@ -1268,5 +1286,8 @@ endif
 -include external/ltp/android/ltp_package_list.mk
 DEFAULT_DATA_OUT_MODULES := ltp $(ltp_packages) $(kselftest_modules)
 .KATI_READONLY := DEFAULT_DATA_OUT_MODULES
+
+# Include any vendor specific config.mk file
+-include vendor/*/build/core/config.mk
 
 include $(BUILD_SYSTEM)/dumpvar.mk

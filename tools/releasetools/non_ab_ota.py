@@ -116,6 +116,15 @@ def GetBlockDifferences(target_zip, source_zip, target_info, source_info,
   return block_diff_dict
 
 
+def CopyInstallTools(output_zip):
+  install_path = os.path.join(OPTIONS.input_tmp, "INSTALL")
+  for root, subdirs, files in os.walk(install_path):
+     for f in files:
+      install_source = os.path.join(root, f)
+      install_target = os.path.join("install", os.path.relpath(root, install_path), f)
+      output_zip.write(install_source, install_target)
+
+
 def WriteFullOTAPackage(input_zip, output_file):
   target_info = common.BuildInfo(OPTIONS.info_dict, OPTIONS.oem_dicts)
 
@@ -150,9 +159,9 @@ def WriteFullOTAPackage(input_zip, output_file):
   assert HasRecoveryPatch(input_zip, info_dict=OPTIONS.info_dict)
 
   # Assertions (e.g. downgrade check, device properties check).
-  ts = target_info.GetBuildProp("ro.build.date.utc")
-  ts_text = target_info.GetBuildProp("ro.build.date")
-  script.AssertOlderBuild(ts, ts_text)
+  #ts = target_info.GetBuildProp("ro.build.date.utc")
+  #ts_text = target_info.GetBuildProp("ro.build.date")
+  #script.AssertOlderBuild(ts, ts_text)
 
   target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
   device_specific.FullOTA_Assertions()
@@ -182,8 +191,8 @@ def WriteFullOTAPackage(input_zip, output_file):
   #    complete script normally
   #    (allow recovery to mark itself finished and reboot)
 
-  recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
-                                         OPTIONS.input_tmp, "RECOVERY")
+  # recovery_img = common.GetBootableImage("recovery.img", "recovery.img",
+  #                                        OPTIONS.input_tmp, "RECOVERY")
   if OPTIONS.two_step:
     if not target_info.get("multistage_support"):
       assert False, "two-step packages not supported by this build"
@@ -198,7 +207,7 @@ if get_stage("%(bcb_dev)s") == "2/3" then
 
     # Stage 2/3: Write recovery image to /recovery (currently running /boot).
     script.Comment("Stage 2/3")
-    script.WriteRawImage("/recovery", "recovery.img")
+    # script.WriteRawImage("/recovery", "recovery.img")
     script.AppendExtra("""
 set_stage("%(bcb_dev)s", "3/3");
 reboot_now("%(bcb_dev)s", "recovery");
@@ -211,7 +220,43 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
   # Dump fingerprints
   script.Print("Target: {}".format(target_info.fingerprint))
 
+  script.Print("===============================================");
+  script.Print("");
+  script.Print("       ██  █████  ██████  ██    ██ ██ ███████  ");
+  script.Print("       ██ ██   ██ ██   ██ ██    ██ ██ ██       ");
+  script.Print("       ██ ███████ ██████  ██    ██ ██ ███████  ");
+  script.Print("  ██   ██ ██   ██ ██   ██  ██  ██  ██      ██  ");
+  script.Print("   █████  ██   ██ ██   ██   ████   ██ ███████  ");
+  script.Print("");
+  script.Print("===============================================");
+
+  jarvis_version = target_info.GetBuildProp("ro.jarvis.version")
+  build_id = target_info.GetBuildProp("ro.build.id")
+  build_date = target_info.GetBuildProp("ro.build.date")
+  security_patch = target_info.GetBuildProp("ro.build.version.security_patch")
+  jarvis_device = target_info.GetBuildProp("ro.product.device")
+
+  script.Print("===============================================");
+  script.Print(" Version        : %s"%(jarvis_version));
+  script.Print(" Release Date   : %s"%(build_date));
+  script.Print(" Security Patch : %s"%(security_patch));
+  script.Print(" Device         : %s"%(jarvis_device));
+  script.Print("===============================================");
+
   device_specific.FullOTA_InstallBegin()
+
+  CopyInstallTools(output_zip)
+  script.UnpackPackageDir("install", "/tmp/install")
+  script.SetPermissionsRecursive("/tmp/install", 0, 0, 0o755, 0o644, None, None)
+  script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0o755, 0o755, None, None)
+
+  if target_info.get("system_root_image") == "true":
+    sysmount = "/"
+  else:
+    sysmount = "/system"
+
+  if OPTIONS.backuptool:
+    script.RunBackup("backup", sysmount, target_info.get('use_dynamic_partitions') == "true")
 
   # All other partitions as well as the data wipe use 10% of the progress, and
   # the update of the system partition takes the remaining progress.
@@ -242,6 +287,12 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
       "boot.img", "boot.img", OPTIONS.input_tmp, "BOOT")
   common.CheckSize(boot_img.data, "boot.img", target_info)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
+
+  device_specific.FullOTA_PostValidate()
+
+  if OPTIONS.backuptool:
+    script.ShowProgress(0.02, 10)
+    script.RunBackup("restore", sysmount, target_info.get('use_dynamic_partitions') == "true")
 
   script.WriteRawImage("/boot", "boot.img")
 
